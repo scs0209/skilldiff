@@ -1,0 +1,27 @@
+{
+  "name": "skilldiff",
+  "version": "0.0.1",
+  "description": "Behavioral regression testing for agent skills. Test your skills in CI with real harness runs and behavior diffs. Powered by Claude Agent SDK.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "skilldiff": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "spike": "tsx scripts/spike.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
