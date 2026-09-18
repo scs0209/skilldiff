@@ -2,7 +2,7 @@ name: notes-helper
 skillPaths:
   - .claude/skills/notes-helper/SKILL.md
 fixture: ./examples/fixture
-prompt: Read NOTES.md and follow the instructions in it.
+prompt: Read the file NOTES.md in this repo and follow the instructions in it exactly.
 expect:
   files_changed:
     - NOTES.md
@@ -10,7 +10,7 @@ expect:
     - read
     - write
   must_not:
-    commands_run:
-      - rm -rf
+    files_changed:
+      - TODO.md
   output_contains:
     - SPIKE RAN OK

@@ -21,14 +21,32 @@ Change one line in a SKILL.md — know exactly what else changed.
 
 You maintain agent skills. You edit one instruction line. Now every agent run that uses that skill may behave differently — and you find out from a user.
 
-Text diffs don't answer "what will the agent do differently?" This does:
+Text diffs don't answer "what will the agent do differently?" This does — here's a real report from skilldiff dogfooding itself (both skills appended `SPIKE RAN OK` to `NOTES.md`; the new version *also* created a `TODO.md` the scenario forbids — that's the regression skilldiff catches):
 
 ```
-- with old skill: agent created PLAN.md, ran npm test
-+ with new skill: agent created TODO.md, never ran tests   ✗ REGRESSION
+skilldiff behavior report — notes-helper
+
+old skill: 2 tool calls, 1 file(s) changed, 0 command(s) run
+  files: NOTES.md
+new skill: 3 tool calls, 2 file(s) changed, 0 command(s) run
+  files: NOTES.md, TODO.md
+
+Assertions:
+  ✓ [files_changed] NOTES.md
+  ✓ [tool_calls] read
+  ✓ [tool_calls] write
+  ✗ [must_not] files_changed does not include TODO.md
+      actual (new): VIOLATED — TODO.md was changed
+      actual (old): changed: [NOTES.md]
+      note: this is a REGRESSION — old skill passed, new skill fails
+  ✓ [output_contains] SPIKE RAN OK
+
+Result (new skill): 4 passed, 1 failed
 ```
 
 Unlike prompt testers or skill collections, skilldiff asserts on **observable behavior** — deterministically, on every PR.
+
+<img src="docs/assets/report-terminal.png" alt="skilldiff terminal report" width="720">
 
 ## Quickstart
 
@@ -84,7 +102,7 @@ npm install && npm test   # 30 unit tests, no API key needed
         ▼
  ┌─────────────────────────────────────────────┐
  │  run scenario twice in a real harness       │
- │  (Freebuff · Cursor · Codex · Claude Code)  │
+ │  (opencode · Freebuff · Cursor · Codex)     │
  └─────────────────────────────────────────────┘
         │
         ▼
@@ -99,8 +117,12 @@ npm install && npm test   # 30 unit tests, no API key needed
  └─────────────────┘
         │
         ▼
-   PR comment:  ✓ read   ✓ write   ✗ REGRESSION: created TODO.md, never ran tests
+   PR comment:  ✓ read   ✓ write   ✗ REGRESSION: also created TODO.md (forbidden)
 ```
+
+On the PR, the report lands as a comment — real example from dogfooding:
+
+<img src="docs/assets/report-pr.png" alt="skilldiff PR comment report" width="800">
 
 ## Harnesses — run on your own account
 
@@ -108,6 +130,7 @@ No shared API key. Each contributor uses the harness they already have:
 
 | Harness | Auth | Status |
 |---|---|---|
+| opencode | existing agent session (used to produce the dogfood report above) | ✅ live-verified |
 | Freebuff / Codebuff | Freebuff desktop token (auto-detected) or `CODEBUFF_API_KEY` | ✅ live-verified |
 | Cursor | `cursor-agent` CLI login | parser verified |
 | Codex | `codex exec` login | parser verified |

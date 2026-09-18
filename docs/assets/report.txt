@@ -1,0 +1,18 @@
+skilldiff behavior report — notes-helper
+
+old skill: 2 tool calls, 1 file(s) changed, 0 command(s) run
+  files: NOTES.md
+new skill: 3 tool calls, 2 file(s) changed, 0 command(s) run
+  files: NOTES.md, TODO.md
+
+Assertions:
+  ✓ [files_changed] NOTES.md
+  ✓ [tool_calls] read
+  ✓ [tool_calls] write
+  ✗ [must_not] files_changed does not include TODO.md
+      actual (new): VIOLATED — TODO.md was changed
+      actual (old): changed: [NOTES.md]
+      note: this is a REGRESSION — old skill passed, new skill fails
+  ✓ [output_contains] SPIKE RAN OK
+
+Result (new skill): 4 passed, 1 failed
