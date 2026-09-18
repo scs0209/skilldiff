@@ -1,0 +1,116 @@
+name: skilldiff
+
+# Behavioral regression testing for agent skills.
+# Default (PR): runs recorded-trace scenarios only — deterministic, no quota, no secrets.
+# Manual (workflow_dispatch): additionally runs live scenarios via the Freebuff/Codebuff
+# harness using a CODEBUFF_API_KEY repo secret (costs credits; gated behind manual trigger).
+
+on:
+  pull_request:
+    paths:
+      - "skills/**"
+      - ".claude/skills/**"
+      - "skilldiff.yaml"
+      - "examples/**"
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Run live harness (uses credits)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  skilldiff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # full history so `git show <base>:<skill>` can fetch the old skill version
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Discover scenarios
+        id: scenarios
+        run: |
+          # Scenarios live next to the repo as *.scenario.yaml (repo root or examples/)
+          files=$(find . examples -maxdepth 2 -name "*.scenario.yaml" 2>/dev/null | grep -v node_modules | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "Found scenarios: $files"
+
+      - name: Run recorded scenarios
+        if: steps.scenarios.outputs.files != ''
+        id: recorded
+        run: |
+          set +e
+          overall=0
+          : > skilldiff-report.md
+          for scenario in ${{ steps.scenarios.outputs.files }}; do
+            name=$(basename "$scenario" .scenario.yaml)
+            old="examples/traces/${name}-old.json"
+            new="examples/traces/${name}-new.json"
+            args=("$scenario")
+            [ -f "$old" ] && args+=(--old "$old")
+            [ -f "$new" ] && args+=(--new "$new")
+            echo "### scenario: $name" >> skilldiff-report.md
+            echo '```' >> skilldiff-report.md
+            npx tsx src/cli.ts run "${args[@]}" >> skilldiff-report.md 2>&1
+            [ $? -ne 0 ] && overall=1
+            echo '```' >> skilldiff-report.md
+            echo "" >> skilldiff-report.md
+          done
+          echo "overall=$overall" >> "$GITHUB_OUTPUT"
+          exit 0  # report even on assertion failures; gate optionally below
+
+      - name: Run live scenarios (manual only)
+        if: github.event_name == 'workflow_dispatch' && inputs.live
+        env:
+          CODEBUFF_API_KEY: ${{ secrets.CODEBUFF_API_KEY }}
+        run: |
+          set +e
+          for scenario in ${{ steps.scenarios.outputs.files }}; do
+            name=$(basename "$scenario" .scenario.yaml)
+            echo "### live: $name" >> skilldiff-report.md
+            echo '```' >> skilldiff-report.md
+            npx tsx src/cli.ts run "$scenario" --live --base "origin/${{ github.base_ref }}" >> skilldiff-report.md 2>&1
+            echo '```' >> skilldiff-report.md
+            echo "" >> skilldiff-report.md
+          done
+          exit 0
+
+      - name: Find existing comment
+        if: github.event_name == 'pull_request'
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "<!-- skilldiff-report -->"
+
+      - name: Post / update PR comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: skilldiff-report.md
+          edit-mode: replace
+
+      - name: Gate on failures
+        if: steps.recorded.outputs.overall == '1'
+        run: |
+          echo "Recorded scenarios failed — see the skilldiff PR comment."
+          exit 1

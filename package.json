@@ -10,16 +10,20 @@
   "scripts": {
     "build": "tsc",
     "spike": "tsx scripts/spike.ts",
+    "spike:recorded": "tsx scripts/recorded-spike.ts",
+    "spike:freebuff": "tsx scripts/freebuff-spike.ts",
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.0"
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@codebuff/sdk": "^0.10.7",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.0.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^3.0.0"
   },
   "engines": {
     "node": ">=20"

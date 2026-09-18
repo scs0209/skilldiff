@@ -11,8 +11,16 @@ behavior diff as a PR comment.
 
 ## Locked decisions
 
-- **Runner**: TypeScript Claude Agent SDK directly. Typed message stream gives
-  `tool_use` traces; CLI adapter is a documented extension point only.
+- **Runner**: per-harness CLI adapters. Each developer runs skilldiff locally with
+  the harness they already have — Claude Code (`claude -p --output-format
+  stream-json`), Cursor (`cursor-agent -p --output-format stream-json`), Codex
+  (`codex exec --json`). All three emit JSON event streams containing tool-use
+  events; skilldiff normalizes them into one trace format.
+  Supersedes the original "Claude Agent SDK directly" decision (2026-09-18):
+  SDK-only forced every contributor to hold an Anthropic API key with credit;
+  harness CLIs run on each user's own subscription/login.
+  The Agent SDK becomes one adapter among several, not a dependency.
+  Adapter is auto-detected from installed CLIs, overridable via flag.
 - **Diff baseline**: run old + new skill every PR (no caching in v0.1).
   Per-scenario maxTurns 10 + $2/PR default cap, explicit override; cost shown
   in the PR comment.
@@ -38,5 +46,5 @@ behavior diff as a PR comment.
 
 ## NOT in scope (v0.1)
 
-Multi-harness adapters, baseline caching, LLM-judge scoring by default,
+Baseline caching, LLM-judge scoring by default,
 Action Marketplace listing, web playground.

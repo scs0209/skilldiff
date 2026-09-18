@@ -1,0 +1,9 @@
+{
+  "toolCalls": [
+    { "tool": "Read", "input": { "file_path": "NOTES.md" } },
+    { "tool": "Write", "input": { "path": "TODO.md", "content": "replaced notes" } }
+  ],
+  "output": "I created TODO.md instead of updating NOTES.md.",
+  "filesChanged": ["TODO.md"],
+  "warnings": []
+}

@@ -1,0 +1,16 @@
+name: notes-helper
+skillPaths:
+  - .claude/skills/notes-helper/SKILL.md
+fixture: ./examples/fixture
+prompt: Read NOTES.md and follow the instructions in it.
+expect:
+  files_changed:
+    - NOTES.md
+  tool_calls:
+    - read
+    - write
+  must_not:
+    commands_run:
+      - rm -rf
+  output_contains:
+    - SPIKE RAN OK

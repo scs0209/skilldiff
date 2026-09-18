@@ -1,74 +1,93 @@
-// T1 SPIKE — go/no-go for skilldiff
+// T1 SPIKE — go/no-go for skilldiff (harness-adapter edition)
 //
 // Verifies the two feasibility gates from the design doc before any real code:
-//   1. Headless Claude Agent SDK run captures tool_use traces from a fixture repo
-//   2. `git checkout <base> -- <skill paths>` fetches the old skill version (baseline)
+//   1. An installed harness CLI (claude / cursor-agent / codex), run headless,
+//      emits a parseable JSON event stream with tool-use events from a fixture repo.
+//   2. `git show <base>:<skill path>` fetches the old skill version (baseline).
 //
-// Run: bun run spike   (or: npm run spike)
-// Requires: ANTHROPIC_API_KEY in env, claude CLI installed (SDK shells out to it)
+// Run: npm run spike [path-to-fixture]
+// Requires: at least one harness CLI installed + logged in (its own subscription
+// is fine — no ANTHROPIC_API_KEY needed).
 
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { mkdtemp, mkdir, writeFile, readFile, readdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
+import { ADAPTERS, type HarnessAdapter, type ToolUse } from "./adapters.js";
 
-interface ToolUse {
-  tool: string;
-  input: Record<string, unknown>;
+function which(cmd: string): string | null {
+  try {
+    return execFileSync("which", [cmd], { encoding: "utf8" }).trim() || null;
+  } catch {
+    return null;
+  }
 }
 
-async function captureTraces(
-  fixtureRepo: string,
-  prompt: string,
-): Promise<ToolUse[]> {
-  const toolUses: ToolUse[] = [];
-  for await (const message of query({
-    prompt,
-    options: {
-      cwd: fixtureRepo,
-      maxTurns: 5,
-      allowedTools: ["Read", "Write", "Edit", "Bash"],
-      permissionMode: "bypassPermissions",
-    },
-  })) {
-    if (
-      message.type === "assistant" &&
-      "message" in message &&
-      message.message?.content
-    ) {
-      for (const block of message.message.content) {
-        if (block.type === "tool_use") {
-          toolUses.push({
-            tool: block.name,
-            input: block.input as Record<string, unknown>,
-          });
-        }
-      }
+function pickAdapter(): HarnessAdapter {
+  const forEnv = process.env.SKILLDIFF_HARNESS;
+  if (forEnv) {
+    const found = ADAPTERS.find((a) => a.name === forEnv);
+    if (!found) {
+      console.error(`SKILLDIFF_HARNESS=${forEnv} is not one of: ${ADAPTERS.map((a) => a.name).join(", ")}`);
+      process.exit(2);
     }
+    if (!which(found.cmd)) {
+      console.error(`${found.cmd} not found in PATH`);
+      process.exit(2);
+    }
+    return found;
   }
-  return toolUses;
+  for (const a of ADAPTERS) {
+    if (which(a.cmd)) return a;
+  }
+  console.error("No harness CLI found. Install one of: claude, cursor-agent, codex");
+  process.exit(2);
+}
+
+function runHarness(adapter: HarnessAdapter, cwd: string, prompt: string): Promise<{ traces: ToolUse[]; stderr: string; code: number | null }> {
+  return new Promise((resolvePromise) => {
+    const child = spawn(adapter.cmd, [...adapter.baseArgs, prompt], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const traces: ToolUse[] = [];
+    let stderr = "";
+    let buf = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      buf += chunk.toString();
+      let idx: number;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (!line) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue; // non-JSON noise lines are expected from some harnesses
+        }
+        traces.push(...adapter.extractToolUses(parsed));
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("close", (code) => resolvePromise({ traces, stderr, code }));
+    child.on("error", (err) => {
+      stderr += String(err);
+      resolvePromise({ traces, stderr, code: -1 });
+    });
+  });
 }
 
 // Gate 2: fetch the old skill version from a base ref into a temp copy
-async function baselineFetch(
-  repoPath: string,
-  baseRef: string,
-  skillPaths: string[],
-): Promise<boolean> {
+async function baselineFetch(repoPath: string, baseRef: string, skillPaths: string[]): Promise<boolean> {
   try {
     execFileSync("git", ["rev-parse", "--verify", baseRef], { cwd: repoPath });
     const dest = await mkdtemp(join(tmpdir(), "skilldiff-baseline-"));
-    execFileSync("git", ["checkout", baseRef, "--", ...skillPaths], {
-      cwd: repoPath,
-    });
+    execFileSync("git", ["checkout", baseRef, "--", ...skillPaths], { cwd: repoPath });
     // restore repo to HEAD immediately — we only wanted the files
-    execFileSync("git", ["checkout", "HEAD", "--", ...skillPaths], {
-      cwd: repoPath,
-    });
-    console.log(
-      `  baseline fetch OK: ${skillPaths.length} path(s) from ${baseRef}`,
-    );
+    execFileSync("git", ["checkout", "HEAD", "--", ...skillPaths], { cwd: repoPath });
+    void dest;
+    console.log(`  baseline fetch OK: ${skillPaths.length} path(s) from ${baseRef}`);
     return true;
   } catch (err) {
     console.error(`  baseline fetch FAILED: ${(err as Error).message}`);
@@ -77,28 +96,26 @@ async function baselineFetch(
 }
 
 export async function runSpike(fixturePathArg?: string): Promise<void> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error(
-      "ANTHROPIC_API_KEY not set. CI usage requires API-key auth (SDK docs).",
-    );
-    process.exit(2);
-  }
+  const adapter = pickAdapter();
+  console.log(`Spike harness: ${adapter.name} (${which(adapter.cmd)})`);
 
-  const fixtureRepo = resolve(
-    fixturePathArg ?? (await makeMinimalFixture()),
-  );
+  const fixtureRepo = resolve(fixturePathArg ?? (await makeMinimalFixture()));
   console.log(`Spike fixture: ${fixtureRepo}`);
 
   // ---- Gate 1: tool trace capture ------------------------------------
-  console.log("\n[Gate 1] headless run + tool_use trace capture");
-  const prompt =
-    "Read the file NOTES.md in this repo and follow the instructions in it exactly.";
-  let traces: ToolUse[];
+  console.log(`\n[Gate 1] headless ${adapter.name} run + tool-use trace capture`);
+  const prompt = "Read the file NOTES.md in this repo and follow the instructions in it exactly.";
   try {
-    traces = await captureTraces(fixtureRepo, prompt);
-    const readCall = traces.find((t) => t.tool === "Read");
-    const writeCall = traces.find((t) => t.tool === "Write" || t.tool === "Edit");
-    console.log(`  captured ${traces.length} tool_use events:`, traces.map((t) => t.tool));
+    const { traces, stderr, code } = await runHarness(adapter, fixtureRepo, prompt);
+    if (stderr.trim()) console.log(`  harness stderr: ${stderr.trim().slice(0, 500)}`);
+    if (code !== 0 && traces.length === 0) {
+      console.error(`  Gate 1: FAIL — harness exited ${code} with no tool events captured`);
+      if (stderr.trim()) console.error(`  stderr: ${stderr.trim().slice(0, 1000)}`);
+      process.exit(3);
+    }
+    const readCall = traces.find((t) => t.tool.toLowerCase().includes("read"));
+    const writeCall = traces.find((t) => /write|edit/i.test(t.tool));
+    console.log(`  captured ${traces.length} tool events:`, traces.map((t) => t.tool));
     if (readCall && writeCall) {
       console.log("  Gate 1: PASS (Read + Write observed — assertions are feasible)");
     } else {
@@ -112,7 +129,6 @@ export async function runSpike(fixturePathArg?: string): Promise<void> {
 
   // ---- Gate 2: baseline fetch ----------------------------------------
   console.log("\n[Gate 2] git baseline fetch (old skill version)");
-  // Make the fixture a git repo so gate 2 has something to fetch from
   try {
     execFileSync("git", ["init"], { cwd: fixtureRepo });
     execFileSync("git", ["add", "-A"], { cwd: fixtureRepo });
@@ -121,7 +137,7 @@ export async function runSpike(fixturePathArg?: string): Promise<void> {
       ["-c", "user.email=spike@skilldiff", "-c", "user.name=spike", "commit", "-m", "init"],
       { cwd: fixtureRepo },
     );
-    // modify the skill, then try fetching the old one from HEAD~0 → HEAD
+    // modify the skill, then try fetching the old one from HEAD~1
     const skillPath = join(fixtureRepo, ".claude", "skills", "notes-helper", "SKILL.md");
     await writeFile(skillPath, "---\nname: notes-helper\n---\n\nCHANGED instructions.");
     execFileSync("git", ["add", "-A"], { cwd: fixtureRepo });
