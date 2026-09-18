@@ -1,81 +1,122 @@
+<div align="center">
+
 # skilldiff
 
-Behavioral regression testing for agent skills. Test your skills in CI with real harness runs and behavior diffs.
+**Behavioral regression testing for agent skills.**
 
-> Powered by Claude Agent SDK · Freebuff (Codebuff) · Cursor · Codex
+Change one line in a SKILL.md — know exactly what else changed.
 
-Status: v0.1 core implemented. See `docs/design-decisions.md` for the design rationale.
+[![CI](https://github.com/scs0209/skilldiff/actions/workflows/skilldiff.yml/badge.svg)](https://github.com/scs0209/skilldiff/actions/workflows/skilldiff.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](package.json)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-ff69b4)](CONTRIBUTING.md)
 
-## What it does
+*Runs your skill in a real agent harness against a fixture repo and asserts on what the agent actually did — files changed, commands run, tool calls.*
 
-Change one line in a SKILL.md, open a PR, and CI shows you a behavioral diff:
+</div>
+
+---
+
+## The problem
+
+You maintain agent skills. You edit one instruction line. Now every agent run that uses that skill may behave differently — and you find out from a user.
+
+Text diffs don't answer "what will the agent do differently?" This does:
 
 ```
 - with old skill: agent created PLAN.md, ran npm test
-+ with new skill: agent created TODO.md, never ran tests   ✗
++ with new skill: agent created TODO.md, never ran tests   ✗ REGRESSION
 ```
 
-Unlike existing skill collections and prompt testers, skilldiff runs your skill
-inside a real agent harness against a fixture repo and asserts on what the agent
-actually did — files changed, commands run, tool calls — deterministically.
+Unlike prompt testers or skill collections, skilldiff asserts on **observable behavior** — deterministically, on every PR.
 
-## Harnesses — run on your own account
+## Quickstart
 
-Each developer runs skilldiff with the harness they already have. No shared API key:
+```bash
+git clone https://github.com/scs0209/skilldiff.git && cd skilldiff
+npm install && npm test   # no API key needed for development
+```
 
-| Harness | Auth | Status |
-|---|---|---|
-| Freebuff / Codebuff | Freebuff desktop login token (auto-detected) or `CODEBUFF_API_KEY` | ✅ live |
-| Cursor | `cursor-agent` CLI login | adapter ready |
-| Codex | `codex exec` login | adapter ready |
-| Claude Code | `claude` CLI login | adapter ready |
-
-## Usage
-
-### 1. Write a scenario
+Describe what your skill should do:
 
 ```yaml
 # notes-helper.scenario.yaml
 name: notes-helper
-skillPaths:
-  - .claude/skills/notes-helper/SKILL.md
+skillPaths: [".claude/skills/notes-helper/SKILL.md"]
 fixture: ./examples/fixture
 prompt: Read NOTES.md and follow the instructions in it.
 expect:
-  files_changed:
-    - NOTES.md
-  tool_calls:
-    - read
-    - write
+  files_changed: [NOTES.md]
+  tool_calls: [read, write]
   must_not:
-    commands_run:
-      - rm -rf
-  output_contains:
-    - SPIKE RAN OK
+    commands_run: ["rm -rf"]
+  output_contains: ["SPIKE RAN OK"]
 ```
 
-### 2. Run it
+Run it — recorded mode is free and deterministic:
 
 ```bash
-# Recorded mode — replay captured traces, deterministic, free (default for CI)
 skilldiff run notes-helper.scenario.yaml \
-  --old traces/notes-helper-old.json \
-  --new traces/notes-helper-new.json
-
-# Live mode — actually runs the agent via Freebuff (uses your Freebuff credits)
-skilldiff run notes-helper.scenario.yaml --live
-
-# Full pipeline — fetches the old skill from the base branch and diffs behavior
-skilldiff run notes-helper.scenario.yaml --live --base origin/main
+  --old traces/old.json --new traces/new.json
 ```
 
-Exit code: 0 = all assertions pass on the new skill, 1 = behavior differs.
+Or **live** on your own agent account (Freebuff works out of the box — it uses your desktop login):
 
-### 3. CI (GitHub Action)
+```bash
+skilldiff run notes-helper.scenario.yaml --live --base origin/main
+# fetches the OLD skill from main, runs old + new, posts the behavior diff
+```
+
+## How it works
+
+```
+ PR touches skills/**
+        │
+        ▼
+ ┌─────────────────┐     git show base:SKILL.md
+ │  baseline fetch  │ ────────────────────────────►  old skill version
+ └─────────────────┘
+        │
+        ▼
+ ┌─────────────────────────────────────────────┐
+ │  run scenario twice in a real harness       │
+ │  (Freebuff · Cursor · Codex · Claude Code)  │
+ └─────────────────────────────────────────────┘
+        │
+        ▼
+ ┌─────────────────┐
+ │  trace capture   │  tool calls · files changed · commands · output
+ └─────────────────┘
+        │
+        ▼
+ ┌─────────────────┐
+ │ 5 assertions     │  files_changed · commands_run · tool_calls
+ │ + behavior diff  │  must_not · output_contains
+ └─────────────────┘
+        │
+        ▼
+   PR comment:  ✓ read   ✓ write   ✗ REGRESSION: created TODO.md, never ran tests
+```
+
+## Harnesses — run on your own account
+
+No shared API key. Each contributor uses the harness they already have:
+
+| Harness | Auth | Status |
+|---|---|---|
+| Freebuff / Codebuff | Freebuff desktop token (auto-detected) or `CODEBUFF_API_KEY` | ✅ live-verified |
+| Cursor | `cursor-agent` CLI login | parser verified |
+| Codex | `codex exec` login | parser verified |
+| Claude Code | `claude` CLI login | parser verified |
+
+Missing your harness? [Open a harness request](https://github.com/scs0209/skilldiff/issues/new?template=harness_request.yml) — or better, [build the adapter](CONTRIBUTING.md#adding-a-harness-adapter). It's ~40 lines and the highest-value contribution type.
+
+## CI
 
 `.github/workflows/skilldiff.yml` ships with the repo:
-- **On PRs touching `skills/**`**: recorded scenarios run deterministically; the report posts as a PR comment.
-- **Manual dispatch with `live: true`**: additionally runs live scenarios against the base branch (requires a `CODEBUFF_API_KEY` secret).
+
+- **On PRs touching `skills/**`** — recorded scenarios run deterministically (no secrets, no quota), report posts as a PR comment, failures gate the merge.
+- **Manual dispatch with `live: true`** — additionally runs live scenarios against the base branch (uses credits; requires a `CODEBUFF_API_KEY` secret).
 
 ## The 5 assertion kinds
 
@@ -89,17 +130,24 @@ Exit code: 0 = all assertions pass on the new skill, 1 = behavior differs.
 
 ## Commands
 
-```bash
-npm run spike            # harness auto-detect + trace capture validation
-npm run spike:recorded   # validate trace parsers without live quota
-npm run spike:freebuff   # live Freebuff run on a minimal fixture
-npm test                 # unit tests (scenario loader, assertions, report, baseline)
-```
+| Command | Purpose |
+|---|---|
+| `npm test` | unit tests — no API key needed |
+| `npm run spike` | live harness auto-detect + trace capture check |
+| `npm run spike:recorded` | parser replay against recorded traces (no quota) |
+| `npm run spike:freebuff` | live Freebuff run on a minimal fixture |
+| `skilldiff run <scenario> [flags]` | run a behavior diff |
 
-## Design docs
+## Design
 
-- `docs/design-decisions.md` — chosen approach, rejected alternatives, cost caps
+Design decisions, rejected alternatives, and cost caps: [`docs/design-decisions.md`](docs/design-decisions.md).
+
+TL;DR — run old + new every PR (no caching in v0.1), exactly 5 partial-match assertion kinds in plain YAML, deterministic recorded traces for CI with live LLM runs only where you opt in.
+
+## Contributing
+
+Contributions welcome — harness adapters, assertion ideas, real-world example scenarios, docs. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Please note our [Code of Conduct](CODE_OF_CONDUCT.md). Security issues: [SECURITY.md](SECURITY.md) (not via public issues).
 
 ## License
 
-MIT
+[MIT](LICENSE)

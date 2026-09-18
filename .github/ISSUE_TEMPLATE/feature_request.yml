@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose an improvement to skilldiff
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do today? Lead with the pain, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed YAML / output
+      description: |
+        Show the scenario YAML you wish you could write, or the report output
+        you wish you'd see. Concrete beats abstract.
+      render: yaml
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - new assertion kind
+        - report formatting
+        - harness adapter
+        - CI / GitHub Action
+        - docs
+        - other
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Are you willing to implement this?
+      options:
+        - label: Yes, I'd like to work on this (see CONTRIBUTING.md)

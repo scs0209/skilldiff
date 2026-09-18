@@ -1,0 +1,44 @@
+name: Bug report
+description: skilldiff produced a wrong or broken behavior diff
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Expected vs actual behavior. Include the report output if there is one.
+    validations:
+      required: true
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Harness
+      description: Which harness ran the scenario?
+      options:
+        - freebuff
+        - cursor-agent
+        - codex
+        - claude-code
+        - recorded mode (no live harness)
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario YAML
+      description: Minimal scenario that reproduces the issue.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace / evidence
+      description: Recorded trace JSON or harness output. REDACT any tokens before pasting.
+      render: json
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: skilldiff commit, node version, harness CLI version
+      placeholder: dfaa43b / node 20.x / cursor-agent 2026.09.08
+    validations:
+      required: true

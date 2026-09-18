@@ -1,0 +1,34 @@
+name: New harness support
+description: Request (or propose) support for another agent harness
+labels: ["harness", "enhancement"]
+body:
+  - type: input
+    id: harness-name
+    attributes:
+      label: Harness name
+      placeholder: e.g. aider, windsurf, goose
+    validations:
+      required: true
+  - type: textarea
+    id: headless-docs
+    attributes:
+      label: Headless mode documentation
+      description: Link to the CLI's print/non-interactive/JSON-output docs. If there are none, this harness likely can't be supported yet.
+    validations:
+      required: true
+  - type: textarea
+    id: sample-output
+    attributes:
+      label: Sample JSON event lines
+      description: |
+        2-3 real lines of the harness's tool-use events (run it headless on a
+        tiny task and paste the output). REDACT any tokens. This is the hard
+        part of every adapter — providing it speeds up support enormously.
+      render: json
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Are you willing to build the adapter?
+      description: See "Adding a harness adapter" in CONTRIBUTING.md — it's the highest-value contribution type.
+      options:
+        - label: Yes, I'd like to work on this
