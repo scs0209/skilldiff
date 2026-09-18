@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 
 function usage(): never {
   console.error(`Usage:
+  skilldiff init [dir]              discover skills, emit starter scenarios
   skilldiff run <scenario.yaml> [--old recorded.json] [--new recorded.json]
                  [--live] [--base <git-ref>]
   skilldiff spike [fixture-path]
@@ -52,6 +53,12 @@ switch (command) {
 
     console.log(result.report);
     process.exit(result.passed ? 0 : 1);
+    break;
+  }
+  case "init": {
+    const { runInit, printInitSummary } = await import("./init.js");
+    const result = await runInit(resolve(args[0] ?? process.cwd()));
+    printInitSummary(result);
     break;
   }
   case "--version":

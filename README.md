@@ -32,39 +32,43 @@ Unlike prompt testers or skill collections, skilldiff asserts on **observable be
 
 ## Quickstart
 
-```bash
-git clone https://github.com/scs0209/skilldiff.git && cd skilldiff
-npm install && npm test   # no API key needed for development
-```
-
-Describe what your skill should do:
-
-```yaml
-# notes-helper.scenario.yaml
-name: notes-helper
-skillPaths: [".claude/skills/notes-helper/SKILL.md"]
-fixture: ./examples/fixture
-prompt: Read NOTES.md and follow the instructions in it.
-expect:
-  files_changed: [NOTES.md]
-  tool_calls: [read, write]
-  must_not:
-    commands_run: ["rm -rf"]
-  output_contains: ["SPIKE RAN OK"]
-```
-
-Run it — recorded mode is free and deterministic:
+No clone needed. From any repo that has skills:
 
 ```bash
-skilldiff run notes-helper.scenario.yaml \
+npx skilldiff init     # scans .claude/skills/, skills/, .agents/skills/
+                       # and generates a starter scenario per skill
+```
+
+```
+Found 2 skill(s):
+
+  notes-helper — Helps take notes
+    .claude/skills/notes-helper/SKILL.md
+  deploy — Deploys the app
+    skills/deploy/SKILL.md
+
+Created starter scenarios:
+  skilldiff/notes-helper.scenario.yaml
+  skilldiff/deploy.scenario.yaml
+```
+
+Point each scenario's `fixture` at a small repo the skill can safely operate on, strengthen `expect` to match real behavior, then run:
+
+```bash
+# Live on your own agent account (Freebuff works out of the box — uses your desktop login)
+npx skilldiff run skilldiff/notes-helper.scenario.yaml --live --base origin/main
+# fetches the OLD skill from main, runs old + new, prints the behavior diff
+
+# Recorded mode — replay captured traces, free and deterministic (what CI uses)
+npx skilldiff run skilldiff/notes-helper.scenario.yaml \
   --old traces/old.json --new traces/new.json
 ```
 
-Or **live** on your own agent account (Freebuff works out of the box — it uses your desktop login):
+Want to hack on skilldiff itself?
 
 ```bash
-skilldiff run notes-helper.scenario.yaml --live --base origin/main
-# fetches the OLD skill from main, runs old + new, posts the behavior diff
+git clone https://github.com/scs0209/skilldiff.git && cd skilldiff
+npm install && npm test   # 30 unit tests, no API key needed
 ```
 
 ## How it works
@@ -132,11 +136,12 @@ Missing your harness? [Open a harness request](https://github.com/scs0209/skilld
 
 | Command | Purpose |
 |---|---|
-| `npm test` | unit tests — no API key needed |
-| `npm run spike` | live harness auto-detect + trace capture check |
-| `npm run spike:recorded` | parser replay against recorded traces (no quota) |
-| `npm run spike:freebuff` | live Freebuff run on a minimal fixture |
-| `skilldiff run <scenario> [flags]` | run a behavior diff |
+| `npx skilldiff init [dir]` | discover skills, generate starter scenarios |
+| `npx skilldiff run <scenario> [flags]` | run a behavior diff |
+| `npm test` (dev) | unit tests — no API key needed |
+| `npm run spike` (dev) | live harness auto-detect + trace capture check |
+| `npm run spike:recorded` (dev) | parser replay against recorded traces (no quota) |
+| `npm run spike:freebuff` (dev) | live Freebuff run on a minimal fixture |
 
 ## Design
 

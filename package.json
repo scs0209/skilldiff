@@ -1,14 +1,39 @@
 {
   "name": "skilldiff",
-  "version": "0.0.1",
-  "description": "Behavioral regression testing for agent skills. Test your skills in CI with real harness runs and behavior diffs. Powered by Claude Agent SDK.",
+  "version": "0.1.0",
+  "description": "Behavioral regression testing for agent skills. Runs your skill in a real agent harness and diffs the behavior on every PR.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scs0209/skilldiff.git"
+  },
+  "homepage": "https://github.com/scs0209/skilldiff#readme",
+  "bugs": "https://github.com/scs0209/skilldiff/issues",
+  "keywords": [
+    "agent",
+    "skills",
+    "testing",
+    "regression",
+    "claude",
+    "cursor",
+    "codex",
+    "codebuff",
+    "ci"
+  ],
+  "files": [
+    "dist/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "bin": {
-    "skilldiff": "./dist/cli.js"
+    "skilldiff": "./dist/src/cli.js"
   },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build && npm test",
     "spike": "tsx scripts/spike.ts",
     "spike:recorded": "tsx scripts/recorded-spike.ts",
     "spike:freebuff": "tsx scripts/freebuff-spike.ts",
