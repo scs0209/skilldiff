@@ -37,6 +37,7 @@
     "spike": "tsx scripts/spike.ts",
     "spike:recorded": "tsx scripts/recorded-spike.ts",
     "spike:freebuff": "tsx scripts/freebuff-spike.ts",
+    "assets": "tsx scripts/render-hero-assets.ts",
     "test": "vitest run"
   },
   "dependencies": {
