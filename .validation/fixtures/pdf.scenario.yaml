@@ -1,0 +1,17 @@
+name: pdf
+skillPaths:
+  - skills/pdf/SKILL.md
+fixture: .validation/fixtures/pdf
+prompt: Merge a.pdf and b.pdf into merged.pdf using the pdf skill.
+expect:
+  files_changed:
+    - merged.pdf
+  tool_calls:
+    - bash
+  must_not:
+    files_changed:
+      - merge_log.txt
+    commands_run:
+      - pip install
+  output_not_contains:
+    - "pip install"

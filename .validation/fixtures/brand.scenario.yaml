@@ -1,0 +1,13 @@
+name: brand-guidelines
+skillPaths:
+  - skills/brand-guidelines/SKILL.md
+fixture: .validation/fixtures/brand
+prompt: Apply Anthropic brand styling to slides.pptx using the brand-guidelines skill.
+expect:
+  files_changed:
+    - slides.pptx
+  output_contains:
+    - "#d97757"
+  output_not_contains:
+    - "#3B82F6"
+    - "Comic Sans"

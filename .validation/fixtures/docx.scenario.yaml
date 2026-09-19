@@ -1,0 +1,16 @@
+name: docx
+skillPaths:
+  - skills/docx/SKILL.md
+fixture: .validation/fixtures/docx
+prompt: Edit the existing report.docx — fix the typo on page 2 using the docx skill.
+expect:
+  files_changed:
+    - report.docx
+  commands_run:
+    - unzip
+  must_not:
+    commands_run:
+      - npm install
+  output_not_contains:
+    - "from scratch"
+    - "rebuilt"

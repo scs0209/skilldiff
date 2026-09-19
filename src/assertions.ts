@@ -42,7 +42,8 @@ type AssertionKind =
   | "commands_run"
   | "tool_calls"
   | "must_not"
-  | "output_contains";
+  | "output_contains"
+  | "output_not_contains";
 
 function partialMatch(haystacks: string[], needle: string): boolean {
   const n = needle.toLowerCase();
@@ -124,6 +125,17 @@ export function evaluateAssertions(trace: RunTrace, expect: Expectations): Asser
       expected,
       pass,
       actual: trace.output ? `output: "${trace.output.slice(0, 200)}"` : "(no output)",
+    });
+  }
+
+  // output_not_contains — forbidden substrings in the final output
+  for (const forbidden of expect.output_not_contains ?? []) {
+    const violated = trace.output.toLowerCase().includes(forbidden.toLowerCase());
+    results.push({
+      kind: "output_not_contains",
+      expected: `output does not include ${forbidden}`,
+      pass: !violated,
+      actual: violated ? `VIOLATED — output contains "${forbidden}"` : "ok",
     });
   }
 

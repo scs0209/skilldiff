@@ -2,6 +2,11 @@
 // Two modes:
 //   recorded: replays a captured trace JSON (deterministic, for CI without quota)
 //   freebuff: live run via the Freebuff/Codebuff harness (scripts/freebuff-adapter.ts)
+//
+// Batch mode (repeat > 1): a single run is a sample. Repeating each side N times
+// and comparing empirical failure rates surfaces tail-risk regressions that a
+// clean one-shot diff would pass into main. Recorded mode stays deterministic
+// (every repeat is identical — that is the point).
 
 import { readFile, cp, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
@@ -11,8 +16,13 @@ import type { Scenario } from "./scenario.js";
 import { fetchSkillVersion, cleanupSkillVersion } from "./baseline.js";
 import { buildTrace } from "./trace-utils.js";
 import { evaluateAssertions, type RunTrace, type AssertionResult } from "./assertions.js";
-import type { SideResult } from "./report.js";
-import { formatReport } from "./report.js";
+import type { SideResult, BatchAgg, BatchRegression, BatchOptions } from "./report.js";
+import {
+  formatReport,
+  aggregateBatch,
+  detectBatchRegressions,
+  formatBatchReport,
+} from "./report.js";
 
 /** A recorded trace fixture — captured once from a live run, replayed deterministically. */
 export interface RecordedTrace {
@@ -101,28 +111,78 @@ export interface RunOptions {
   live?: boolean;
   /** Git ref to fetch the OLD skill version from (e.g. base branch). Enables the full pipeline. */
   base?: string;
+  /**
+   * Batch size: how many times to run each side (default 1).
+   * > 1 enables failure-rate aggregation (Monte Carlo batch).
+   */
+  repeat?: number;
+}
+
+export interface BatchSummary {
+  old: BatchAgg | null;
+  new: BatchAgg;
+  regressions: BatchRegression[];
+  options: Required<BatchOptions>;
 }
 
 export interface RunResult {
   report: string;
   passed: boolean;
   sides: SideResult[];
+  batch?: BatchSummary;
+}
+
+const BATCH_OPTIONS: Required<BatchOptions> = { tolerance: 0.1, floor: 0.2 };
+
+function summarizeRun(
+  scenario: Scenario,
+  oldSides: SideResult[],
+  newSides: SideResult[],
+  repeat: number,
+): RunResult {
+  if (repeat <= 1) {
+    const sides = [...oldSides, ...newSides];
+    const newSide = sides[sides.length - 1];
+    const report = formatReport(scenario.name, sides);
+    const passed = newSide.assertions.every((a) => a.pass);
+    return { report, passed, sides };
+  }
+
+  const oldAgg = oldSides.length > 0 ? aggregateBatch(oldSides) : null;
+  const target = newSides.length > 0 ? newSides : oldSides;
+  const newAgg = aggregateBatch(target);
+  const regressions = detectBatchRegressions(oldAgg, newAgg, BATCH_OPTIONS);
+
+  // With no candidate (old-only self-check), "pass" means the harness behaves:
+  // no assertion failed in any run.
+  const passed =
+    target === oldSides
+      ? newAgg.assertions.every((a) => a.fails === 0)
+      : !regressions.some((r) => r.blocked);
+
+  const report = formatBatchReport(scenario.name, oldAgg, newAgg, regressions, BATCH_OPTIONS);
+  return {
+    report,
+    passed,
+    sides: [...oldSides.slice(0, 1), ...newSides.slice(0, 1)],
+    batch: { old: oldAgg, new: newAgg, regressions, options: BATCH_OPTIONS },
+  };
 }
 
 export async function runScenario(scenario: Scenario, opts: RunOptions): Promise<RunResult> {
   const fixtureRoot = resolve(scenario.fixture);
+  const repeat = opts.repeat ?? 1;
 
   if (!opts.live && opts.oldTrace) {
     // Deterministic recorded mode
     const old = await loadRecordedTrace(opts.oldTrace);
-    const sides: SideResult[] = [runRecordedSide("old skill", old, scenario, fixtureRoot)];
+    const oldSides = Array.from({ length: repeat }, () => runRecordedSide("old skill", old, scenario, fixtureRoot));
+    const newSides: SideResult[] = [];
     if (opts.newTrace) {
       const neu = await loadRecordedTrace(opts.newTrace);
-      sides.push(runRecordedSide("new skill", neu, scenario, fixtureRoot));
+      newSides.push(...Array.from({ length: repeat }, () => runRecordedSide("new skill", neu, scenario, fixtureRoot)));
     }
-    const report = formatReport(scenario.name, sides);
-    const lastAssertions = sides[sides.length - 1].assertions;
-    return { report, passed: lastAssertions.every((a) => a.pass), sides };
+    return summarizeRun(scenario, oldSides, newSides, repeat);
   }
 
   // Live mode — currently Freebuff only; other harnesses come online in later v0.1 cuts.
@@ -143,16 +203,24 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     }
 
     try {
-      const oldSide = await runFreebuffSide("old skill", scenario, fixtureRoot, oldVersion.dir);
+      const oldSides: SideResult[] = [];
+      for (let i = 0; i < repeat; i++) {
+        for (const skillPath of scenario.skillPaths) {
+          await cp(join(oldVersion.dir, skillPath), join(fixtureRoot, skillPath), { force: true });
+        }
+        oldSides.push(await runFreebuffSide("old skill", scenario, fixtureRoot, oldVersion.dir));
+      }
 
-      // Restore new skill files before the new run.
+      // Restore new skill files before the new runs.
       for (const skillPath of scenario.skillPaths) {
         await cp(join(snapshotDir, skillPath), join(fixtureRoot, skillPath), { force: true });
       }
-      const newSide = await runFreebuffSide("new skill", scenario, fixtureRoot);
+      const newSides: SideResult[] = [];
+      for (let i = 0; i < repeat; i++) {
+        newSides.push(await runFreebuffSide("new skill", scenario, fixtureRoot));
+      }
 
-      const report = formatReport(scenario.name, [oldSide, newSide]);
-      return { report, passed: newSide.assertions.every((a) => a.pass), sides: [oldSide, newSide] };
+      return summarizeRun(scenario, oldSides, newSides, repeat);
     } finally {
       // Restore new skill files even on failure so the fixture isn't left with old versions.
       for (const skillPath of scenario.skillPaths) {
@@ -163,7 +231,9 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     }
   }
 
-  const newSide = await runFreebuffSide("new skill", scenario, fixtureRoot);
-  const report = formatReport(scenario.name, [newSide]);
-  return { report, passed: newSide.assertions.every((a) => a.pass), sides: [newSide] };
+  const newSides: SideResult[] = [];
+  for (let i = 0; i < repeat; i++) {
+    newSides.push(await runFreebuffSide("new skill", scenario, fixtureRoot));
+  }
+  return summarizeRun(scenario, [], newSides, repeat);
 }

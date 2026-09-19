@@ -1,0 +1,11 @@
+{
+  "toolCalls": [
+    { "tool": "Bash", "input": { "command": "python3 scripts/office/soffice.py --headless --convert-to docx report.doc" } },
+    { "tool": "Bash", "input": { "command": "unzip -o report.docx word/document.xml" } },
+    { "tool": "Bash", "input": { "command": "zip report.docx word/document.xml" } }
+  ],
+  "output": "Edited report.docx in place via unzip → document.xml edit → rezip.",
+  "filesChanged": ["report.docx"],
+  "commandsRun": ["soffice.py --convert-to docx", "unzip -o report.docx", "zip report.docx"],
+  "warnings": []
+}

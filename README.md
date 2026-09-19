@@ -21,28 +21,35 @@ Change one line in a SKILL.md — know exactly what else changed.
 
 You maintain agent skills. You edit one instruction line. Now every agent run that uses that skill may behave differently — and you find out from a user.
 
-Text diffs don't answer "what will the agent do differently?" This does — here's a real report from skilldiff dogfooding itself (both skills appended `SPIKE RAN OK` to `NOTES.md`; the new version *also* created a `TODO.md` the scenario forbids — that's the regression skilldiff catches):
+Text diffs don't answer "what will the agent do differently?" This does — here's the actual PR-comment report from skilldiff dogfooding itself (both skills appended `SPIKE RAN OK` to `NOTES.md`; the new version *also* created a `TODO.md` the scenario forbids — that's the regression skilldiff catches):
 
-```
-skilldiff behavior report — notes-helper
+> *Text diff says what changed. This says what the agent will do differently.*
+>
+> **old skill** — 2 tool calls · 1 file(s) · 0 command(s)
+>   files: `NOTES.md`
+> **new skill** — 3 tool calls · 2 file(s) · 0 command(s)
+>   files: `NOTES.md`, `TODO.md`
 
-old skill: 2 tool calls, 1 file(s) changed, 0 command(s) run
-  files: NOTES.md
-new skill: 3 tool calls, 2 file(s) changed, 0 command(s) run
-  files: NOTES.md, TODO.md
+| assertion | expectation | baseline | candidate |
+|---|---|---|---|
+| `files_changed` | NOTES.md | ✓ pass | ✓ pass |
+| `tool_calls` | read | ✓ pass | ✓ pass |
+| `tool_calls` | write | ✓ pass | ✓ pass |
+| `must_not` | files_changed does not include TODO.md | ✓ pass | ✗ **REGRESSION** |
+| `output_contains` | SPIKE RAN OK | ✓ pass | ✓ pass |
 
-Assertions:
-  ✓ [files_changed] NOTES.md
-  ✓ [tool_calls] read
-  ✓ [tool_calls] write
-  ✗ [must_not] files_changed does not include TODO.md
-      actual (new): VIOLATED — TODO.md was changed
-      actual (old): changed: [NOTES.md]
-      note: this is a REGRESSION — old skill passed, new skill fails
-  ✓ [output_contains] SPIKE RAN OK
+Result (new skill): ❌ **1 behavior regression** — 4 passed, 1 failed
 
-Result (new skill): 4 passed, 1 failed
-```
+#### What to fix
+
+<details open>
+<summary><code>must_not</code> — files_changed does not include TODO.md (REGRESSION)</summary>
+
+what happened: the old skill never touched `TODO.md`; the new skill created/modified it via `Write`.
+likely cause: an added instruction in SKILL.md now nudges the agent to produce `TODO.md` ("summarize what you did"-style lines are common culprits).
+fix: add an explicit negative constraint to SKILL.md (e.g. "do NOT create any new files") or scope the instruction to `NOTES.md` only — then re-run.
+
+</details>
 
 Unlike prompt testers or skill collections, skilldiff asserts on **observable behavior** — deterministically, on every PR.
 
@@ -77,16 +84,51 @@ Point each scenario's `fixture` at a small repo the skill can safely operate on,
 npx skilldiff run skilldiff/notes-helper.scenario.yaml --live --base origin/main
 # fetches the OLD skill from main, runs old + new, prints the behavior diff
 
+# Batch / Monte Carlo — one run is a sample; repeat each side N times and
+# assert on the empirical failure rate (default gate: block ≥20%, warn >10 pts)
+npx skilldiff run skilldiff/notes-helper.scenario.yaml --live --base origin/main --repeat 10
+
 # Recorded mode — replay captured traces, free and deterministic (what CI uses)
 npx skilldiff run skilldiff/notes-helper.scenario.yaml \
   --old traces/old.json --new traces/new.json
 ```
 
+**`--repeat N` — because a single run is a sample.** If an edit introduces a
+~15% chance of taking an unprompted tool branch, comparing one baseline run
+against one candidate run misses the regression over 70% of the time. Batch
+mode runs each side N times and gates on the **empirical failure rate** per
+assertion instead of one clean draw. Recorded/CI replay is deterministic —
+0 variance by construction — which is exactly why it can't catch live-only,
+probabilistic regressions; batched live runs are the oracle for those.
+
+```bash
+# Visualize the behavior diff as a self-contained page (no JS, no browser deps)
+npx skilldiff orbit traces/old.json traces/new.json --out orbit.html
+
+# Or visualize a failure-rate batch: one card per assertion, N run-ticks each
+npx skilldiff orbit --old traces/old.json x10 --new traces/new.json x10 \
+  --scenario skilldiff/notes-helper.scenario.yaml --out rate.html
+```
+
+<details>
+<summary>Sample output — single-run orbit (behavior-engine scene)</summary>
+
+<img src="docs/assets/orbit-hero.png" alt="skilldiff orbit — behavior-engine scene" width="840">
+
+</details>
+
+<details>
+<summary>Sample output — rate orbit (Monte Carlo failure-rate batch)</summary>
+
+<img src="docs/assets/orbit-rate-hero.png" alt="skilldiff orbit — failure-rate batch" width="840">
+
+</details>
+
 Want to hack on skilldiff itself?
 
 ```bash
 git clone https://github.com/scs0209/skilldiff.git && cd skilldiff
-npm install && npm test   # 30 unit tests, no API key needed
+npm install && npm test   # 53 unit tests, no API key needed
 ```
 
 ## How it works
@@ -117,7 +159,8 @@ npm install && npm test   # 30 unit tests, no API key needed
  └─────────────────┘
         │
         ▼
-   PR comment:  ✓ read   ✓ write   ✗ REGRESSION: also created TODO.md (forbidden)
+   PR comment:  | must_not | files_changed does not include TODO.md
+                |                          | ✓ pass | ✗ REGRESSION |
 ```
 
 On the PR, the report lands as a comment — real example from dogfooding:
@@ -160,7 +203,9 @@ Missing your harness? [Open a harness request](https://github.com/scs0209/skilld
 | Command | Purpose |
 |---|---|
 | `npx skilldiff init [dir]` | discover skills, generate starter scenarios |
-| `npx skilldiff run <scenario> [flags]` | run a behavior diff |
+| `npx skilldiff run <scenario> [flags]` | run a behavior diff (`--repeat N` for failure-rate batches) |
+| `npx skilldiff orbit <old.json> <new.json> [flags]` | render two runs as a static behavior-engine scene |
+| `npx skilldiff orbit --old … --new … --scenario …` | render a Monte Carlo failure-rate batch (one card per assertion) |
 | `npm test` (dev) | unit tests — no API key needed |
 | `npm run spike` (dev) | live harness auto-detect + trace capture check |
 | `npm run spike:recorded` (dev) | parser replay against recorded traces (no quota) |

@@ -11,7 +11,8 @@ export type AssertionKind =
   | "commands_run"
   | "tool_calls"
   | "must_not"
-  | "output_contains";
+  | "output_contains"
+  | "output_not_contains";
 
 export interface Expectations {
   /** Paths that must have been changed/created relative to fixture root. Partial match. */
@@ -28,6 +29,8 @@ export interface Expectations {
   };
   /** Substring(s) that must appear in the agent's final text output. */
   output_contains?: string[];
+  /** Substring(s) that must NOT appear in the agent's final text output. */
+  output_not_contains?: string[];
 }
 
 export interface Scenario {

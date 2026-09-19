@@ -1,0 +1,11 @@
+{
+  "toolCalls": [
+    { "tool": "Bash", "input": { "command": "npm install docx" } },
+    { "tool": "Write", "input": { "file_path": "rebuild.js", "content": "const docx = require('docx'); /* rebuild whole document */" } },
+    { "tool": "Bash", "input": { "command": "node rebuild.js" } }
+  ],
+  "output": "Rebuilt report.docx from scratch with docx-js (tracked changes and comments were lost).",
+  "filesChanged": ["report.docx", "rebuild.js"],
+  "commandsRun": ["npm install docx", "node rebuild.js"],
+  "warnings": []
+}
