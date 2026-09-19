@@ -121,6 +121,14 @@ assertion instead of one clean draw. Recorded/CI replay is deterministic —
 0 variance by construction — which is exactly why it can't catch live-only,
 probabilistic regressions; batched live runs are the oracle for those.
 
+After a run, render the behavior diff as a self-contained page — old run cards flow through the behavior engine into the new run, with the verdict ledger underneath:
+
+<img src="docs/assets/orbit-hero.png" alt="skilldiff orbit — behavior-engine scene with verdict ledger" width="840">
+
+For `--repeat N` batches, the orbit becomes one card per assertion with the empirical failure rate drawn as a slope:
+
+<img src="docs/assets/orbit-rate-hero.png" alt="skilldiff rate orbit — failure-rate batch with regression slopes" width="840">
+
 ```bash
 # Visualize the behavior diff as a self-contained page (no JS, no browser deps)
 npx skilldiff orbit traces/old.json traces/new.json --out orbit.html
@@ -130,25 +138,11 @@ npx skilldiff orbit --old traces/old.json x10 --new traces/new.json x10 \
   --scenario skilldiff/notes-helper.scenario.yaml --out rate.html
 ```
 
-<details>
-<summary>Sample output — single-run orbit (behavior-engine scene)</summary>
-
-<img src="docs/assets/orbit-hero.png" alt="skilldiff orbit — behavior-engine scene" width="840">
-
-</details>
-
-<details>
-<summary>Sample output — rate orbit (Monte Carlo failure-rate batch)</summary>
-
-<img src="docs/assets/orbit-rate-hero.png" alt="skilldiff orbit — failure-rate batch" width="840">
-
-</details>
-
 Want to hack on skilldiff itself?
 
 ```bash
 git clone https://github.com/scs0209/skilldiff.git && cd skilldiff
-npm install && npm test   # 53 unit tests, no API key needed
+npm install && npm test   # 57 unit tests, no API key needed
 ```
 
 ## How it works
@@ -237,7 +231,7 @@ Missing your harness? [Open a harness request](https://github.com/scs0209/skilld
 
 Design decisions, rejected alternatives, and cost caps: [`docs/design-decisions.md`](docs/design-decisions.md).
 
-TL;DR — run old + new every PR (no caching in v0.1), exactly 5 partial-match assertion kinds in plain YAML, deterministic recorded traces for CI with live LLM runs only where you opt in.
+TL;DR — run old + new every PR (no caching in v0.1), exactly 6 partial-match assertion kinds in plain YAML, deterministic recorded traces for CI with live LLM runs only where you opt in.
 
 ## Contributing
 
