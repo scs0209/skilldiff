@@ -6,6 +6,12 @@
 
 Change one line in a SKILL.md — know exactly what else changed.
 
+<img src="docs/assets/demo-terminal.gif" alt="npx skilldiff demo — catching a skill regression in 10 seconds" width="720">
+
+```bash
+npx skilldiff demo
+```
+
 [![CI](https://github.com/scs0209/skilldiff/actions/workflows/skilldiff.yml/badge.svg)](https://github.com/scs0209/skilldiff/actions/workflows/skilldiff.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](package.json)
