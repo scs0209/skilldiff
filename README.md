@@ -174,8 +174,8 @@ npm install && npm test   # 53 unit tests, no API key needed
         │
         ▼
  ┌─────────────────┐
- │ 5 assertions     │  files_changed · commands_run · tool_calls
- │ + behavior diff  │  must_not · output_contains
+ │ 6 assertions     │  files_changed · commands_run · tool_calls
+ │ + behavior diff  │  must_not · output_contains · output_not_contains
  └─────────────────┘
         │
         ▼
@@ -208,7 +208,7 @@ Missing your harness? [Open a harness request](https://github.com/scs0209/skilld
 - **On PRs touching `skills/**`** — recorded scenarios run deterministically (no secrets, no quota), report posts as a PR comment, failures gate the merge.
 - **Manual dispatch with `live: true`** — additionally runs live scenarios against the base branch (uses credits; requires a `CODEBUFF_API_KEY` secret).
 
-## The 5 assertion kinds
+## The 6 assertion kinds
 
 | Kind | Meaning | Matching |
 |---|---|---|
@@ -217,6 +217,7 @@ Missing your harness? [Open a harness request](https://github.com/scs0209/skilld
 | `tool_calls` | tools invoked (normalized across harnesses) | canonical name |
 | `must_not` | forbidden files/commands/tools | inverted |
 | `output_contains` | substrings in final output | partial, case-insensitive |
+| `output_not_contains` | substrings that must NOT appear in output | partial, case-insensitive, inverted |
 
 ## Commands
 
