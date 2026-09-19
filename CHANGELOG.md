@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `skilldiff demo` — one command, zero setup: runs the bundled example
+  regression end-to-end (ANSI-colored ledger report + "What to fix" advice),
+  writes the orbit scene next to the caller's cwd, and opens it in the
+  browser. The 10-second first experience.
 - `skilldiff orbit <old.json> <new.json>` — renders any two recorded runs as a
   self-contained "behavior orbit": a behavior-engine scene where the old run's
   tool calls enter a glowing diff orb from the left, the new run's exit right,

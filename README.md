@@ -57,7 +57,21 @@ Unlike prompt testers or skill collections, skilldiff asserts on **observable be
 
 ## Quickstart
 
-No clone needed. From any repo that has skills:
+**10 seconds, no setup** — see it catch a real regression right now:
+
+```bash
+npx skilldiff demo     # runs a bundled skill regression end-to-end
+                       # and opens the behavior diff in your browser
+```
+
+<details>
+<summary>What just happened</summary>
+
+A skill that appends a note to `NOTES.md` was edited — one line in `SKILL.md`, `git diff` says LGTM. Running both versions showed the new one **also creates a `TODO.md` the scenario forbids**. The report names it (`must_not` REGRESSION), explains the likely cause, and suggests the fix. That's what lands on every PR touching `skills/**`.
+
+</details>
+
+Then wire up your own repo:
 
 ```bash
 npx skilldiff init     # scans .claude/skills/, skills/, .agents/skills/
@@ -202,6 +216,7 @@ Missing your harness? [Open a harness request](https://github.com/scs0209/skilld
 
 | Command | Purpose |
 |---|---|
+| `npx skilldiff demo` | 10-second demo — bundled regression, opens the behavior diff |
 | `npx skilldiff init [dir]` | discover skills, generate starter scenarios |
 | `npx skilldiff run <scenario> [flags]` | run a behavior diff (`--repeat N` for failure-rate batches) |
 | `npx skilldiff orbit <old.json> <new.json> [flags]` | render two runs as a static behavior-engine scene |

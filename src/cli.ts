@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 
 function usage(): never {
   console.error(`Usage:
+  skilldiff demo                    10-second demo — bundled example, opens the behavior diff
   skilldiff init [dir]              discover skills, emit starter scenarios
   skilldiff run <scenario.yaml> [--old recorded.json] [--new recorded.json]
                  [--live] [--base <git-ref>] [--repeat N]
@@ -68,6 +69,15 @@ switch (command) {
 
     console.log(result.report);
     process.exit(result.passed ? 0 : 1);
+    break;
+  }
+  case "demo": {
+    const { runDemo } = await import("./demo.js");
+    const { passed, orbitPath } = await runDemo();
+    if (!process.stdout.isTTY) {
+      console.log(`orbit: ${orbitPath}`);
+    }
+    process.exit(passed ? 0 : 1);
     break;
   }
   case "init": {
