@@ -40,17 +40,17 @@ async function shoot(
   html: string,
   out: string,
   width: number,
-  opts: { fullPage?: boolean } = {},
+  opts: { height?: number } = {},
 ) {
   await writeFile("/tmp/skilldiff-hero-shoot.html", html);
   const browser = await chromium.launch({ executablePath: CHROME_CANDIDATES[0] });
   const page = await browser.newPage({
-    viewport: { width, height: 800 },
+    viewport: { width, height: opts.height ?? 800 },
     deviceScaleFactor: 2,
   });
   await page.goto("file:///tmp/skilldiff-hero-shoot.html");
   await page.waitForTimeout(400);
-  await page.screenshot({ path: out, fullPage: opts.fullPage ?? false });
+  await page.screenshot({ path: out, fullPage: true });
   await browser.close();
   console.log(`  wrote ${out}`);
 }
@@ -96,6 +96,6 @@ await mkdir(ASSETS, { recursive: true });
 const wrap = (body: string) =>
   `<html><head><style>*{margin:0;padding:0}</style></head><body>${body}</body></html>`;
 
-await shoot(wrap(orbit), join(ASSETS, "orbit-hero.png"), 1280, { fullPage: true });
-await shoot(wrap(rate), join(ASSETS, "orbit-rate-hero.png"), 1280, { fullPage: true });
+await shoot(wrap(orbit), join(ASSETS, "orbit-hero.png"), 1280);
+await shoot(wrap(rate), join(ASSETS, "orbit-rate-hero.png"), 1280, { height: 560 });
 console.log("done");
